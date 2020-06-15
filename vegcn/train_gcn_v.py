@@ -6,7 +6,8 @@ import torch
 from vegcn.runner import Runner
 from dsgcn.train import build_optimizer
 from vegcn.datasets import build_dataset
-from utils import sparse_mx_to_torch_sparse_tensor
+from utils import sparse_mx_to_indices_values
+import dgl
 
 
 def batch_processor(model, data, train_mode):
@@ -52,14 +53,19 @@ def _single_train(model, dataset, cfg):
         runner.load_checkpoint(cfg.load_from)
 
     features = torch.FloatTensor(dataset.features)
-    adj = sparse_mx_to_torch_sparse_tensor(dataset.adj)
+    # build dgl graph
+
+    #adj = sparse_mx_to_torch_sparse_tensor(dataset.adj)
+    indices, values, shape = sparse_mx_to_indices_values(dataset.adj)
+    dgl_g = dgl.graph((indices[0], indices[1]))
+
     labels = torch.FloatTensor(dataset.labels)
 
     if cfg.cuda:
         model.cuda()
         features = features.cuda()
-        adj = adj.cuda()
+        #adj = adj.cuda()
         labels = labels.cuda()
 
-    train_data = [[features, adj, labels]]
+    train_data = [[features, dgl_g, labels]]
     runner.run(train_data, cfg.workflow, cfg.total_epochs)

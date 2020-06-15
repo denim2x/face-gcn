@@ -11,7 +11,7 @@ from vegcn.datasets import build_dataset
 from vegcn.confidence import confidence_to_peaks
 from vegcn.deduce import peaks_to_labels
 
-from utils import (sparse_mx_to_torch_sparse_tensor, list2dict, write_meta,
+from utils import (sparse_mx_to_torch_sparse_tensor, sparse_mx_to_indices_values, list2dict, write_meta,
                    write_feat, mkdir_if_no_exists, rm_suffix, build_knns,
                    knns2ordered_nbrs, BasicDataset, Timer)
 from evaluation import evaluate, accuracy
@@ -23,18 +23,19 @@ def test(model, dataset, cfg, logger):
         load_checkpoint(model, cfg.load_from, strict=True, logger=logger)
 
     features = torch.FloatTensor(dataset.features)
-    adj = sparse_mx_to_torch_sparse_tensor(dataset.adj)
+    indices, values, shape = sparse_mx_to_indices_values(dataset.adj)
+    dgl_g = dgl.graph((indices[0], indices[1]))
+
     if not dataset.ignore_label:
         labels = torch.FloatTensor(dataset.labels)
 
     if cfg.cuda:
         model.cuda()
         features = features.cuda()
-        adj = adj.cuda()
         labels = labels.cuda()
 
     model.eval()
-    output, gcn_feat = model((features, adj), output_feat=True)
+    output, gcn_feat = model((dgl_g, features), output_feat=True)
     if not dataset.ignore_label:
         loss = F.mse_loss(output, labels)
         loss_test = float(loss)

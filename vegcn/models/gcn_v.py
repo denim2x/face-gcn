@@ -10,7 +10,7 @@ from vegcn.models.utils import GraphConv, MeanAggregator
 class GCN_V(nn.Module):
     def __init__(self, feature_dim, nhid, nclass, dropout=0):
         super(GCN_V, self).__init__()
-        self.conv1 = GraphConv(feature_dim, nhid, MeanAggregator, dropout)
+        self.conv1 = GraphConv(feature_dim, nhid, dropout)
 
         self.nclass = nclass
         self.classifier = nn.Sequential(nn.Linear(nhid, nhid), nn.PReLU(nhid),
@@ -19,8 +19,8 @@ class GCN_V(nn.Module):
 
     def forward(self, data, output_feat=False, return_loss=False):
         assert not output_feat or not return_loss
-        x, adj = data[0], data[1]
-        x = self.conv1(x, adj)
+        x, dgl_g = data[0], data[1]
+        x = self.conv1(dgl_g, x)
         pred = self.classifier(x).view(-1)
 
         if output_feat:

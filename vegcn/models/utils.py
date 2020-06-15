@@ -6,6 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 
+import dgl
+import dgl.nn as dgl_nn
+
 
 class MeanAggregator(nn.Module):
     def __init__(self):
@@ -26,26 +29,14 @@ class GraphConv(nn.Module):
         super(GraphConv, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.weight = nn.Parameter(torch.FloatTensor(in_dim * 2, out_dim))
-        self.bias = nn.Parameter(torch.FloatTensor(out_dim))
-        init.xavier_uniform_(self.weight)
-        init.constant_(self.bias, 0)
-        self.agg = agg()
+        self.gcn_layer = dgl_nn.conv.GraphConv(in_dim, out_dim, bias=True)
+        self.gcn_layer.reset_parameters()
         self.dropout = dropout
 
-    def forward(self, features, A):
+    def forward(self, dgl_g, features):
         feat_dim = features.shape[-1]
         assert (feat_dim == self.in_dim)
-        agg_feats = self.agg(features, A)
-        cat_feats = torch.cat([features, agg_feats], dim=-1)
-        if features.dim() == 2:
-            op = 'nd,df->nf'
-        elif features.dim() == 3:
-            op = 'bnd,df->bnf'
-        else:
-            raise RuntimeError('the dimension of features should be 2 or 3')
-        out = torch.einsum(op, (cat_feats, self.weight))
-        out = F.relu(out + self.bias)
+        out = self.gcn_layer(dgl_g, features)
         if self.dropout > 0:
             out = F.dropout(out, self.dropout, training=self.training)
         return out
