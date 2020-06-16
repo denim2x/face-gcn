@@ -12,6 +12,8 @@ from utils import (create_logger, set_random_seed, rm_suffix,
 from vegcn.models import build_model
 from vegcn import build_handler
 
+import numpy as np
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -43,6 +45,7 @@ def parse_args():
 
 
 def main():
+    np.random.seed(1234)
     args = parse_args()
     cfg = Config.fromfile(args.config)
 

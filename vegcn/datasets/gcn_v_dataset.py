@@ -6,6 +6,8 @@ from utils import (read_meta, read_probs, l2norm, build_knns,
                    build_symmetric_adj, sparse_mx_to_indices_values,
                    intdict2ndarray, Timer)
 from vegcn.confidence import (confidence, confidence_to_peaks)
+import dgl
+import torch
 
 
 class GCNVDataset(object):
@@ -56,6 +58,7 @@ class GCNVDataset(object):
             # build symmetric adjacency matrix
             adj = build_symmetric_adj(adj, self_loop=True)
             adj = row_normalize(adj)
+
             if self.save_decomposed_adj:
                 adj = sparse_mx_to_indices_values(adj)
                 self.adj_indices, self.adj_values, self.adj_shape = adj
@@ -76,6 +79,7 @@ class GCNVDataset(object):
                                          metric=self.conf_metric,
                                          idx2lb=self.idx2lb,
                                          lb2idxs=self.lb2idxs)
+                #self.labels = np.zeros(self.features.shape[0])
                 if cfg.eval_interim:
                     _, self.peaks = confidence_to_peaks(
                         self.dists, self.nbrs, self.labels, self.max_conn)

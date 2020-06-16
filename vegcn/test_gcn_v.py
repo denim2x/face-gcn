@@ -33,6 +33,7 @@ def test(model, dataset, cfg, logger):
     if cfg.cuda:
         model.cuda()
         features = features.cuda()
+        dgl_g.edata['affine'] = torch.tensor(values).float().cuda()
         labels = labels.cuda()
 
     model.eval()

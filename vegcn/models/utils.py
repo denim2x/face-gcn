@@ -13,6 +13,17 @@ from dgl.base import DGLError
 import dgl.function as fn
 
 
+class u_mul_e_ele(nn.Module):
+    '''
+    Compute the input feature from neighbors
+    '''
+    def __init__(self):
+        super(u_mul_e_ele, self).__init__()
+
+    def forward(self, edges):
+        return {'m': edges.src['h'] * edges.data['affine']}
+    
+
 # pylint: disable=W0235
 class GraphConv_Concat(nn.Module):
     def __init__(self,
@@ -23,7 +34,7 @@ class GraphConv_Concat(nn.Module):
                  bias=True,
                  activation=None):
         super(GraphConv_Concat, self).__init__()
-        if norm not in ('none', 'both', 'right'):
+        if norm not in ('none', 'both', 'left', 'right', 'affine'):
             raise DGLError('Invalid norm value. Must be either "none", "both" or "right".'
                            ' But got "{}".'.format(norm))
         self._in_feats = in_feats
@@ -41,7 +52,6 @@ class GraphConv_Concat(nn.Module):
             self.register_parameter('bias', None)
 
         self.reset_parameters()
-
         self._activation = activation
 
     def reset_parameters(self):
@@ -50,7 +60,10 @@ class GraphConv_Concat(nn.Module):
             init.xavier_uniform_(self.weight)
         if self.bias is not None:
             init.zeros_(self.bias)
-
+    
+    def direct_affine(self, edges):
+        cos = nn.CosineSimilarity(dim=0)
+        return {'m': cos(edges.src['h'], edges.dst['h']) * edges.src['h']}
 
     def forward(self, graph, feat, weight=None):
         r"""Compute graph convolution.
@@ -79,12 +92,21 @@ class GraphConv_Concat(nn.Module):
         """
         graph = graph.local_var()
 
+        ori_feat = feat
+
         if self._norm == 'both':
             degs = graph.out_degrees().to(feat.device).float().clamp(min=1)
             norm = torch.pow(degs, -0.5)
             shp = norm.shape + (1,) * (feat.dim() - 1)
             norm = torch.reshape(norm, shp)
             feat = feat * norm
+        
+        if self._norm == 'left':
+            degs = graph.in_degrees().to(feat.device).float().clamp(min=1)
+            norm = 1.0 / degs
+            shp = norm.shape + (1,) * (feat.dim() - 1)
+            norm = torch.reshape(norm, shp)
+            feat = norm * feat
 
         if weight is not None:
             if self.weight is not None:
@@ -96,13 +118,27 @@ class GraphConv_Concat(nn.Module):
 
         # aggregate first then mult W
         graph.srcdata['h'] = feat
+        
+        '''
+        graph.update_all(self.direct_affine,
+                         fn.sum(msg='m', out='h'))
+        '''
+        
+        graph.update_all(fn.u_mul_e('h', 'affine', 'm'),
+                            fn.sum(msg='m', out='h'))
+        
+        
+        '''
         graph.update_all(fn.copy_src(src='h', out='m'),
                             fn.sum(msg='m', out='h'))
-        rst = torch.cat([feat, graph.dstdata['h']], dim=-1)
+        '''
+
+        rst = torch.cat([ori_feat, graph.dstdata['h']], dim=-1)
+
         if weight is not None:
             rst = torch.matmul(rst, weight)
 
-        if self._norm != 'none':
+        if self._norm in ['both', 'right']:
             degs = graph.in_degrees().to(feat.device).float().clamp(min=1)
             if self._norm == 'both':
                 norm = torch.pow(degs, -0.5)
@@ -150,8 +186,8 @@ class GraphConv(nn.Module):
         super(GraphConv, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
-        #self.gcn_layer = dgl_nn.conv.GraphConv(in_dim, out_dim, bias=True)
-        self.gcn_layer = GraphConv_Concat(in_dim, out_dim, bias=True)
+        #self.gcn_layer = dgl_nn.conv.GraphConv(in_dim, out_dim, bias=True, norm='right')
+        self.gcn_layer = GraphConv_Concat(in_dim, out_dim, norm='affine', bias=True)
         self.gcn_layer.reset_parameters()
         self.dropout = dropout
 

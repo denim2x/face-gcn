@@ -8,6 +8,7 @@ from dsgcn.train import build_optimizer
 from vegcn.datasets import build_dataset
 from utils import sparse_mx_to_indices_values
 import dgl
+import numpy as np
 
 
 def batch_processor(model, data, train_mode):
@@ -65,6 +66,8 @@ def _single_train(model, dataset, cfg):
         model.cuda()
         features = features.cuda()
         #adj = adj.cuda()
+        #dgl_g.ndata['affine_norm'] = torch.tensor(dataset.affine_norm).float().cuda()
+        dgl_g.edata['affine'] = torch.tensor(values).float().cuda()
         labels = labels.cuda()
 
     train_data = [[features, dgl_g, labels]]
