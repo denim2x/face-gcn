@@ -15,6 +15,7 @@ from utils import (sparse_mx_to_torch_sparse_tensor, sparse_mx_to_indices_values
                    write_feat, mkdir_if_no_exists, rm_suffix, build_knns,
                    knns2ordered_nbrs, BasicDataset, Timer)
 from evaluation import evaluate, accuracy
+import dgl
 
 
 def test(model, dataset, cfg, logger):
@@ -35,7 +36,7 @@ def test(model, dataset, cfg, logger):
         labels = labels.cuda()
 
     model.eval()
-    output, gcn_feat = model((dgl_g, features), output_feat=True)
+    output, gcn_feat = model((features, dgl_g), output_feat=True)
     if not dataset.ignore_label:
         loss = F.mse_loss(output, labels)
         loss_test = float(loss)
