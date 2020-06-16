@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 
-from vegcn.models.utils import GraphConv, MeanAggregator
+from vegcn.models.utils import GraphConv
 
 
 class GCN_V(nn.Module):
