@@ -37,6 +37,7 @@ class GraphConv(nn.Module):
         feat_dim = features.shape[-1]
         assert (feat_dim == self.in_dim)
         out = self.gcn_layer(dgl_g, features)
+        out = F.relu(out)
         if self.dropout > 0:
             out = F.dropout(out, self.dropout, training=self.training)
         return out
