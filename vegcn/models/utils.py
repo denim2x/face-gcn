@@ -11,17 +11,6 @@ import dgl.nn as dgl_nn
 
 from dgl.base import DGLError
 import dgl.function as fn
-
-
-class u_mul_e_ele(nn.Module):
-    '''
-    Compute the input feature from neighbors
-    '''
-    def __init__(self):
-        super(u_mul_e_ele, self).__init__()
-
-    def forward(self, edges):
-        return {'m': edges.src['h'] * edges.data['affine']}
     
 
 # pylint: disable=W0235
@@ -60,10 +49,6 @@ class GraphConv_Concat(nn.Module):
             init.xavier_uniform_(self.weight)
         if self.bias is not None:
             init.zeros_(self.bias)
-    
-    def direct_affine(self, edges):
-        cos = nn.CosineSimilarity(dim=0)
-        return {'m': cos(edges.src['h'], edges.dst['h']) * edges.src['h']}
 
     def forward(self, graph, feat, weight=None):
         r"""Compute graph convolution.
@@ -119,19 +104,12 @@ class GraphConv_Concat(nn.Module):
         # aggregate first then mult W
         graph.srcdata['h'] = feat
         
-        '''
-        graph.update_all(self.direct_affine,
-                         fn.sum(msg='m', out='h'))
-        '''
-        
-        graph.update_all(fn.u_mul_e('h', 'affine', 'm'),
+        if self._norm == 'affine':
+            graph.update_all(fn.u_mul_e('h', 'affine', 'm'),
                             fn.sum(msg='m', out='h'))
-        
-        
-        '''
-        graph.update_all(fn.copy_src(src='h', out='m'),
+        else:
+            graph.update_all(fn.copy_src(src='h', out='m'),
                             fn.sum(msg='m', out='h'))
-        '''
 
         rst = torch.cat([ori_feat, graph.dstdata['h']], dim=-1)
 
@@ -188,13 +166,14 @@ class GraphConv(nn.Module):
         self.out_dim = out_dim
         #self.gcn_layer = dgl_nn.conv.GraphConv(in_dim, out_dim, bias=True, norm='right')
         self.gcn_layer = GraphConv_Concat(in_dim, out_dim, norm='affine', bias=True)
+        #self.gcn_layer = dgl_nn.conv.GATConv(in_dim, out_dim, 1)
         self.gcn_layer.reset_parameters()
         self.dropout = dropout
 
     def forward(self, dgl_g, features):
         feat_dim = features.shape[-1]
         assert (feat_dim == self.in_dim)
-        out = self.gcn_layer(dgl_g, features)
+        out = self.gcn_layer(dgl_g, features).reshape(features.shape[0], -1)
         out = F.relu(out)
         if self.dropout > 0:
             out = F.dropout(out, self.dropout, training=self.training)
