@@ -206,8 +206,8 @@ def build_knns(knn_prefix,
             elif knn_method == 'faiss_gpu':
                 index = knn_faiss_gpu(feats,
                                       k,
-                                      index_path,
-                                      num_process=num_process)
+                                      index_path)
+                                      #num_process=num_process)
             else:
                 raise KeyError(
                     'Only support hnsw and faiss currently ({}).'.format(
@@ -395,7 +395,7 @@ class knn_faiss_gpu(knn):
                                                num_process=num_process,
                                                is_precise=is_precise,
                                                sort=sort,
-                                               verbose=False)
+                                               verbose=verbose)
 
                 self.knns = [(np.array(nbr, dtype=np.int32),
                               np.array(dist, dtype=np.float32))

@@ -10,7 +10,7 @@ def precise_dist(feat, nbrs, num_process=4, sort=True, verbose=False):
     import torch
     feat_share = torch.from_numpy(feat).share_memory_()
     nbrs_share = torch.from_numpy(nbrs).share_memory_()
-    dist_share = torch.zeros_like(nbrs_share).share_memory_()
+    dist_share = torch.zeros_like(nbrs_share).float().share_memory_()
 
     precise_dist_share_mem(feat_share,
                            nbrs_share,
@@ -34,26 +34,21 @@ def precise_dist_share_mem(feat,
     from torch import multiprocessing as mp
     num, _ = feat.shape
     num_per_proc = int(num / num_process) + 1
-
-    processes = []
+    
     for pi in range(num_process):
         sid = pi * num_per_proc
         eid = min(sid + num_per_proc, num)
-        p = mp.Process(target=bmm,
-                       kwargs={
-                           'feat': feat,
-                           'nbrs': nbrs,
-                           'dist': dist,
-                           'sid': sid,
-                           'eid': eid,
-                           'sort': sort,
-                           'process_unit': process_unit,
-                           'verbose': verbose,
-                       })
-        p.start()
-        processes.append(p)
-    for p in processes:
-        p.join()
+        
+        kwargs={'feat': feat,
+                'nbrs': nbrs,
+                'dist': dist,
+                'sid': sid,
+                'eid': eid,
+                'sort': sort,
+                'process_unit': process_unit,
+                'verbose': verbose,
+                }
+        bmm(**kwargs)
 
 
 def bmm(feat,
@@ -73,7 +68,7 @@ def bmm(feat,
         e = min(eid, s + process_unit)
         query = feat[s:e].unsqueeze(1)
         gallery = feat[nbrs[s:e]].permute(0, 2, 1)
-        batch_sim[s - sid:e - sid] = torch.bmm(query, gallery).view(-1, cols)
+        batch_sim[s - sid:e - sid] = torch.clamp(torch.bmm(query, gallery).view(-1, cols), 0.0, 1.0)
 
     if sort:
         sort_unit = int(1e6)
@@ -85,7 +80,6 @@ def bmm(feat,
             batch_nbr[s:e] = torch.gather(batch_nbr[s:e], 1, indices)
         nbrs[sid:eid] = batch_nbr
     dist[sid:eid] = 1. - batch_sim
-
 
 def faiss_search_knn(feat,
                      k,

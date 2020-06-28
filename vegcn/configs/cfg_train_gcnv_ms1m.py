@@ -5,7 +5,7 @@ prefix = './data'
 train_name = 'part0_train'
 test_name = 'part1_test'
 knn = 80
-knn_method = 'faiss'
+knn_method = 'faiss_gpu'
 th_sim = 0.  # cut edges with similarity smaller than th_sim
 
 # if `knn_graph_path` is not passed, it will build knn_graph automatically
